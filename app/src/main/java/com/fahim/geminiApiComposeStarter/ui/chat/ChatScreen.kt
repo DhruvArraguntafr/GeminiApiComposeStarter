@@ -1,5 +1,10 @@
 package com.fahim.geminiApiComposeStarter.ui.chat
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,10 +74,26 @@ fun ChatScreen(
 
     val listState = rememberLazyListState()
 
-    /*
-     * Display API/network errors using a Snackbar.
-     * Once it has been displayed, clear it from the ViewModel state.
-     */
+    // Speech-to-text launcher
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+
+        if (result.resultCode == Activity.RESULT_OK) {
+
+            val spokenText = result.data
+                ?.getStringArrayListExtra(
+                    RecognizerIntent.EXTRA_RESULTS
+                )
+                ?.firstOrNull()
+
+            if (!spokenText.isNullOrBlank()) {
+                onPromptChange(spokenText)
+            }
+        }
+    }
+
+    // Show API/network errors using Snackbar
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -80,16 +101,14 @@ fun ChatScreen(
         }
     }
 
-    /*
-     * Automatically scroll to the newest message.
-     * The loading indicator is treated as an extra item.
-     */
+    // Automatically scroll to newest message
     LaunchedEffect(
         state.messages.size,
         state.isLoading,
     ) {
         val totalItems =
-            state.messages.size + if (state.isLoading) 1 else 0
+            state.messages.size +
+                    if (state.isLoading) 1 else 0
 
         if (totalItems > 0) {
             listState.animateScrollToItem(
@@ -132,7 +151,8 @@ fun ChatScreen(
                     ),
             ) {
 
-                if (state.messages.isEmpty() &&
+                if (
+                    state.messages.isEmpty() &&
                     !state.isLoading
                 ) {
                     item(
@@ -169,6 +189,26 @@ fun ChatScreen(
                 enabled = !state.isLoading,
                 onPromptChange = onPromptChange,
                 onSend = onSend,
+
+                onVoiceClick = {
+
+                    val intent = Intent(
+                        RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                    ).apply {
+
+                        putExtra(
+                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                        )
+
+                        putExtra(
+                            RecognizerIntent.EXTRA_PROMPT,
+                            "Speak your message"
+                        )
+                    }
+
+                    speechLauncher.launch(intent)
+                },
             )
         }
     }
@@ -183,12 +223,14 @@ private fun ChatBubble(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
+
         horizontalArrangement =
             if (isUser) {
                 Arrangement.End
             } else {
                 Arrangement.Start
             },
+
         verticalAlignment = Alignment.Bottom,
     ) {
 
@@ -212,8 +254,10 @@ private fun ChatBubble(
             shape = RoundedCornerShape(
                 topStart = 18.dp,
                 topEnd = 18.dp,
+
                 bottomStart =
                     if (isUser) 18.dp else 4.dp,
+
                 bottomEnd =
                     if (isUser) 4.dp else 18.dp,
             ),
@@ -253,16 +297,17 @@ private fun ChatBubble(
                         } else {
                             "Gemini"
                         },
+
                     style =
                         MaterialTheme.typography.labelSmall,
+
                     color =
                         if (isUser) {
                             MaterialTheme.colorScheme
                                 .onPrimary
                                 .copy(alpha = 0.75f)
                         } else {
-                            MaterialTheme.colorScheme
-                                .primary
+                            MaterialTheme.colorScheme.primary
                         },
                 )
 
@@ -284,6 +329,7 @@ private fun ChatBubble(
                         text =
                             message.text
                                 .toBoldAnnotatedString(),
+
                         style =
                             MaterialTheme.typography.bodyLarge,
                     )
@@ -327,6 +373,7 @@ private fun GeminiLoadingBubble() {
                     horizontal = 16.dp,
                     vertical = 12.dp,
                 ),
+
                 verticalAlignment =
                     Alignment.CenterVertically,
             ) {
@@ -357,7 +404,9 @@ private fun EmptyChatMessage() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
     ) {
 
         Icon(
@@ -384,9 +433,10 @@ private fun EmptyChatMessage() {
         )
 
         Text(
-            text = "Enter a message below and tap Send.",
+            text = "Type or speak a message below.",
             style =
                 MaterialTheme.typography.bodyMedium,
+
             color =
                 MaterialTheme.colorScheme
                     .onSurfaceVariant,
@@ -401,6 +451,7 @@ private fun PromptBar(
     enabled: Boolean,
     onPromptChange: (String) -> Unit,
     onSend: () -> Unit,
+    onVoiceClick: () -> Unit,
 ) {
 
     Row(
@@ -410,7 +461,9 @@ private fun PromptBar(
                 top = 8.dp,
                 bottom = 12.dp,
             ),
-        verticalAlignment = Alignment.CenterVertically,
+
+        verticalAlignment =
+            Alignment.CenterVertically,
     ) {
 
         OutlinedTextField(
@@ -438,6 +491,7 @@ private fun PromptBar(
 
             supportingText =
                 if (promptError != null) {
+
                     {
                         Text(
                             stringResource(
@@ -445,11 +499,25 @@ private fun PromptBar(
                             )
                         )
                     }
+
                 } else {
                     null
                 },
         )
 
+        // Voice input button
+        FilledIconButton(
+            onClick = onVoiceClick,
+            enabled = enabled,
+        ) {
+            Text("🎤")
+        }
+
+        Spacer(
+            modifier = Modifier.width(8.dp)
+        )
+
+        // Send button
         FilledIconButton(
             onClick = onSend,
             enabled = enabled,
