@@ -4,6 +4,7 @@ data class ChatUiState(
     val prompt: String = "",
     val messages: List<ChatMessage> = emptyList(),
     val isLoading: Boolean = false,
+    val conciseReplies: Boolean = false,
     val promptError: PromptError? = null,
     val errorMessage: String? = null,
 )

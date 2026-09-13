@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.fahim.geminiApiComposeStarter.data.GeminiRepository
 import com.fahim.geminiApiComposeStarter.data.local.ChatDao
 import com.fahim.geminiApiComposeStarter.data.local.ChatMessageEntity
+import com.fahim.geminiApiComposeStarter.data.preferences.UserPreferencesRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
     private val repository: GeminiRepository,
     private val chatDao: ChatDao,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val hasApiKey: Boolean,
 ) : ViewModel() {
 
@@ -26,6 +28,7 @@ class ChatViewModel(
 
     init {
         observeChatHistory()
+        observePreferences()
     }
 
     private fun observeChatHistory() {
@@ -58,6 +61,32 @@ class ChatViewModel(
         }
     }
 
+    private fun observePreferences() {
+        viewModelScope.launch {
+
+            userPreferencesRepository
+                .conciseReplies
+                .collect { enabled ->
+
+                    _uiState.update {
+                        it.copy(
+                            conciseReplies = enabled
+                        )
+                    }
+                }
+        }
+    }
+
+    fun onConciseRepliesChange(
+        enabled: Boolean
+    ) {
+        viewModelScope.launch {
+
+            userPreferencesRepository
+                .setConciseReplies(enabled)
+        }
+    }
+
     fun onPromptChange(
         value: String
     ) {
@@ -78,8 +107,7 @@ class ChatViewModel(
 
             _uiState.update {
                 it.copy(
-                    promptError =
-                        PromptError.EMPTY
+                    promptError = PromptError.EMPTY
                 )
             }
 
@@ -102,6 +130,9 @@ class ChatViewModel(
             return
         }
 
+        val conciseReplies =
+            _uiState.value.conciseReplies
+
         _uiState.update {
             it.copy(
                 prompt = "",
@@ -116,7 +147,7 @@ class ChatViewModel(
             try {
 
                 /*
-                 * Save the user's message to Room.
+                 * Save original user message.
                  */
                 chatDao.insertMessage(
                     ChatMessageEntity(
@@ -127,18 +158,31 @@ class ChatViewModel(
                 )
 
                 /*
-                 * Send prompt to Gemini.
+                 * If concise mode is ON,
+                 * instruct Gemini to answer briefly.
                  */
+                val geminiPrompt =
+                    if (conciseReplies) {
+
+                        """
+                        Answer the following question concisely.
+                        Keep the response clear and brief.
+
+                        User question:
+                        $prompt
+                        """.trimIndent()
+
+                    } else {
+
+                        prompt
+                    }
+
                 repository
-                    .generateText(prompt)
+                    .generateText(geminiPrompt)
                     .fold(
 
                         onSuccess = { text ->
 
-                            /*
-                             * Save Gemini's response
-                             * to Room.
-                             */
                             chatDao.insertMessage(
                                 ChatMessageEntity(
                                     text = text,
@@ -185,7 +229,7 @@ class ChatViewModel(
 
                         errorMessage =
                             e.message
-                                ?: "Unable to save chat message",
+                                ?: "Unable to process message",
                     )
                 }
             }
@@ -209,12 +253,6 @@ class ChatViewModel(
 
                 chatDao.clearMessages()
 
-                _uiState.update {
-                    it.copy(
-                        errorMessage = null
-                    )
-                }
-
             } catch (
                 e: Exception
             ) {
@@ -237,6 +275,8 @@ class ChatViewModel(
         fun factory(
             repository: GeminiRepository,
             chatDao: ChatDao,
+            userPreferencesRepository:
+            UserPreferencesRepository,
             hasApiKey: Boolean,
         ) =
             object :
@@ -250,14 +290,11 @@ class ChatViewModel(
                 ): T {
 
                     return ChatViewModel(
-                        repository =
-                            repository,
-
-                        chatDao =
-                            chatDao,
-
-                        hasApiKey =
-                            hasApiKey,
+                        repository = repository,
+                        chatDao = chatDao,
+                        userPreferencesRepository =
+                            userPreferencesRepository,
+                        hasApiKey = hasApiKey,
                     ) as T
                 }
             }

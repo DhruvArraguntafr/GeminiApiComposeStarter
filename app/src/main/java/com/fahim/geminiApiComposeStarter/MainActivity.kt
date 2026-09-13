@@ -8,14 +8,14 @@ import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.fahim.geminiApiComposeStarter.data.GeminiRepositoryImpl
 import com.fahim.geminiApiComposeStarter.data.local.ChatDatabase
+import com.fahim.geminiApiComposeStarter.data.preferences.UserPreferencesRepository
 import com.fahim.geminiApiComposeStarter.security.SecureApiKeyManager
 import com.fahim.geminiApiComposeStarter.ui.chat.ChatRoute
 import com.fahim.geminiApiComposeStarter.ui.chat.ChatViewModel
 import com.fahim.geminiApiComposeStarter.ui.theme.GeminiApiComposeStarterTheme
 import kotlinx.coroutines.launch
 
-class MainActivity :
-    ComponentActivity() {
+class MainActivity : ComponentActivity() {
 
     private val secureApiKeyManager by lazy {
 
@@ -24,12 +24,16 @@ class MainActivity :
         )
     }
 
-    /*
-     * Room database instance.
-     */
     private val chatDatabase by lazy {
 
         ChatDatabase.getDatabase(
+            applicationContext
+        )
+    }
+
+    private val userPreferencesRepository by lazy {
+
+        UserPreferencesRepository(
             applicationContext
         )
     }
@@ -59,6 +63,9 @@ class MainActivity :
             chatDao =
                 chatDatabase.chatDao(),
 
+            userPreferencesRepository =
+                userPreferencesRepository,
+
             hasApiKey =
                 BuildConfig
                     .GEMINI_API_KEY
@@ -74,10 +81,6 @@ class MainActivity :
             savedInstanceState
         )
 
-        /*
-         * On first launch, encrypt the API key
-         * and store only the ciphertext.
-         */
         lifecycleScope.launch {
 
             secureApiKeyManager
