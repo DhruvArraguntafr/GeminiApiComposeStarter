@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.fahim.geminiApiComposeStarter.data.GeminiRepository
+import com.fahim.geminiApiComposeStarter.data.local.ChatDao
+import com.fahim.geminiApiComposeStarter.data.local.ChatMessageEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,15 +15,52 @@ import kotlinx.coroutines.launch
 
 class ChatViewModel(
     private val repository: GeminiRepository,
+    private val chatDao: ChatDao,
     private val hasApiKey: Boolean,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
-    val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private var nextMessageId = 0L
+    val uiState: StateFlow<ChatUiState> =
+        _uiState.asStateFlow()
 
-    fun onPromptChange(value: String) {
+    init {
+        observeChatHistory()
+    }
+
+    private fun observeChatHistory() {
+        viewModelScope.launch {
+
+            chatDao.getAllMessages().collect { entities ->
+
+                val messages = entities.map { entity ->
+
+                    ChatMessage(
+                        id = entity.id,
+                        text = entity.text,
+                        sender = when (entity.sender) {
+
+                            MessageSender.USER.name ->
+                                MessageSender.USER
+
+                            else ->
+                                MessageSender.GEMINI
+                        },
+                    )
+                }
+
+                _uiState.update {
+                    it.copy(
+                        messages = messages
+                    )
+                }
+            }
+        }
+    }
+
+    fun onPromptChange(
+        value: String
+    ) {
         _uiState.update {
             it.copy(
                 prompt = value,
@@ -30,23 +70,31 @@ class ChatViewModel(
     }
 
     fun onSend() {
-        val prompt = _uiState.value.prompt.trim()
+
+        val prompt =
+            _uiState.value.prompt.trim()
 
         if (prompt.isEmpty()) {
+
             _uiState.update {
                 it.copy(
-                    promptError = PromptError.EMPTY
+                    promptError =
+                        PromptError.EMPTY
                 )
             }
+
             return
         }
 
         if (!hasApiKey) {
+
             _uiState.update {
                 it.copy(
-                    errorMessage = MISSING_API_KEY_MESSAGE
+                    errorMessage =
+                        MISSING_API_KEY_MESSAGE
                 )
             }
+
             return
         }
 
@@ -54,16 +102,9 @@ class ChatViewModel(
             return
         }
 
-        val userMessage = ChatMessage(
-            id = nextMessageId++,
-            text = prompt,
-            sender = MessageSender.USER,
-        )
-
         _uiState.update {
             it.copy(
                 prompt = "",
-                messages = it.messages + userMessage,
                 isLoading = true,
                 errorMessage = null,
                 promptError = null,
@@ -72,43 +113,119 @@ class ChatViewModel(
 
         viewModelScope.launch {
 
-            repository.generateText(prompt).fold(
+            try {
 
-                onSuccess = { text ->
+                /*
+                 * Save the user's message to Room.
+                 */
+                chatDao.insertMessage(
+                    ChatMessageEntity(
+                        text = prompt,
+                        sender =
+                            MessageSender.USER.name,
+                    )
+                )
 
-                    val geminiMessage = ChatMessage(
-                        id = nextMessageId++,
-                        text = text,
-                        sender = MessageSender.GEMINI,
+                /*
+                 * Send prompt to Gemini.
+                 */
+                repository
+                    .generateText(prompt)
+                    .fold(
+
+                        onSuccess = { text ->
+
+                            /*
+                             * Save Gemini's response
+                             * to Room.
+                             */
+                            chatDao.insertMessage(
+                                ChatMessageEntity(
+                                    text = text,
+                                    sender =
+                                        MessageSender
+                                            .GEMINI
+                                            .name,
+                                )
+                            )
+
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false
+                                )
+                            }
+                        },
+
+                        onFailure = { error ->
+
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+
+                                    errorMessage =
+                                        error.message
+                                            ?: "Something went wrong",
+                                )
+                            }
+                        },
                     )
 
-                    _uiState.update {
-                        it.copy(
-                            messages = it.messages + geminiMessage,
-                            isLoading = false,
-                        )
-                    }
-                },
+            } catch (
+                e: CancellationException
+            ) {
+                throw e
 
-                onFailure = { error ->
+            } catch (
+                e: Exception
+            ) {
 
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage =
-                                error.message ?: "Something went wrong",
-                        )
-                    }
-                },
-            )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+
+                        errorMessage =
+                            e.message
+                                ?: "Unable to save chat message",
+                    )
+                }
+            }
         }
     }
 
     fun clearError() {
+
         _uiState.update {
             it.copy(
                 errorMessage = null
             )
+        }
+    }
+
+    fun clearChat() {
+
+        viewModelScope.launch {
+
+            try {
+
+                chatDao.clearMessages()
+
+                _uiState.update {
+                    it.copy(
+                        errorMessage = null
+                    )
+                }
+
+            } catch (
+                e: Exception
+            ) {
+
+                _uiState.update {
+                    it.copy(
+                        errorMessage =
+                            "Unable to clear chat history"
+                    )
+                }
+            }
         }
     }
 
@@ -119,19 +236,30 @@ class ChatViewModel(
 
         fun factory(
             repository: GeminiRepository,
+            chatDao: ChatDao,
             hasApiKey: Boolean,
-        ) = object : ViewModelProvider.Factory {
+        ) =
+            object :
+                ViewModelProvider.Factory {
 
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(
-                modelClass: Class<T>
-            ): T {
+                @Suppress(
+                    "UNCHECKED_CAST"
+                )
+                override fun <T : ViewModel> create(
+                    modelClass: Class<T>
+                ): T {
 
-                return ChatViewModel(
-                    repository = repository,
-                    hasApiKey = hasApiKey,
-                ) as T
+                    return ChatViewModel(
+                        repository =
+                            repository,
+
+                        chatDao =
+                            chatDao,
+
+                        hasApiKey =
+                            hasApiKey,
+                    ) as T
+                }
             }
-        }
     }
 }
