@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.fahim.geminiApiComposeStarter.data.GeminiRepository
 import com.fahim.geminiApiComposeStarter.data.local.ChatDao
 import com.fahim.geminiApiComposeStarter.data.local.ChatMessageEntity
-import com.fahim.geminiApiComposeStarter.data.preferences.UserPreferencesRepository
+import com.fahim.geminiApiComposeStarter.data.preferences.UserPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,13 +17,17 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
     private val repository: GeminiRepository,
     private val chatDao: ChatDao,
-    private val userPreferencesRepository: UserPreferencesRepository,
+    private val userPreferencesRepository: UserPreferences,
     private val hasApiKey: Boolean,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ChatUiState())
+    private val _uiState =
+        MutableStateFlow(
+            ChatUiState()
+        )
 
-    val uiState: StateFlow<ChatUiState> =
+    val uiState:
+            StateFlow<ChatUiState> =
         _uiState.asStateFlow()
 
     init {
@@ -32,36 +36,52 @@ class ChatViewModel(
     }
 
     private fun observeChatHistory() {
+
         viewModelScope.launch {
 
-            chatDao.getAllMessages().collect { entities ->
+            chatDao
+                .getAllMessages()
+                .collect { entities ->
 
-                val messages = entities.map { entity ->
+                    val messages =
+                        entities.map { entity ->
 
-                    ChatMessage(
-                        id = entity.id,
-                        text = entity.text,
-                        sender = when (entity.sender) {
+                            ChatMessage(
+                                id = entity.id,
 
-                            MessageSender.USER.name ->
-                                MessageSender.USER
+                                text =
+                                    entity.text,
 
-                            else ->
-                                MessageSender.GEMINI
-                        },
-                    )
+                                sender =
+                                    if (
+                                        entity.sender ==
+                                        MessageSender
+                                            .USER
+                                            .name
+                                    ) {
+
+                                        MessageSender.USER
+
+                                    } else {
+
+                                        MessageSender.GEMINI
+                                    },
+                            )
+                        }
+
+                    _uiState.update {
+
+                        it.copy(
+                            messages =
+                                messages
+                        )
+                    }
                 }
-
-                _uiState.update {
-                    it.copy(
-                        messages = messages
-                    )
-                }
-            }
         }
     }
 
     private fun observePreferences() {
+
         viewModelScope.launch {
 
             userPreferencesRepository
@@ -69,8 +89,10 @@ class ChatViewModel(
                 .collect { enabled ->
 
                     _uiState.update {
+
                         it.copy(
-                            conciseReplies = enabled
+                            conciseReplies =
+                                enabled
                         )
                     }
                 }
@@ -80,17 +102,22 @@ class ChatViewModel(
     fun onConciseRepliesChange(
         enabled: Boolean
     ) {
+
         viewModelScope.launch {
 
             userPreferencesRepository
-                .setConciseReplies(enabled)
+                .setConciseReplies(
+                    enabled
+                )
         }
     }
 
     fun onPromptChange(
         value: String
     ) {
+
         _uiState.update {
+
             it.copy(
                 prompt = value,
                 promptError = null,
@@ -101,13 +128,17 @@ class ChatViewModel(
     fun onSend() {
 
         val prompt =
-            _uiState.value.prompt.trim()
+            _uiState.value
+                .prompt
+                .trim()
 
         if (prompt.isEmpty()) {
 
             _uiState.update {
+
                 it.copy(
-                    promptError = PromptError.EMPTY
+                    promptError =
+                        PromptError.EMPTY
                 )
             }
 
@@ -117,6 +148,7 @@ class ChatViewModel(
         if (!hasApiKey) {
 
             _uiState.update {
+
                 it.copy(
                     errorMessage =
                         MISSING_API_KEY_MESSAGE
@@ -126,14 +158,18 @@ class ChatViewModel(
             return
         }
 
-        if (_uiState.value.isLoading) {
+        if (
+            _uiState.value.isLoading
+        ) {
             return
         }
 
         val conciseReplies =
-            _uiState.value.conciseReplies
+            _uiState.value
+                .conciseReplies
 
         _uiState.update {
+
             it.copy(
                 prompt = "",
                 isLoading = true,
@@ -147,22 +183,27 @@ class ChatViewModel(
             try {
 
                 /*
-                 * Save original user message.
+                 * Save user's message.
                  */
                 chatDao.insertMessage(
+
                     ChatMessageEntity(
                         text = prompt,
+
                         sender =
-                            MessageSender.USER.name,
+                            MessageSender
+                                .USER
+                                .name,
                     )
                 )
 
                 /*
-                 * If concise mode is ON,
-                 * instruct Gemini to answer briefly.
+                 * Apply preference.
                  */
                 val geminiPrompt =
-                    if (conciseReplies) {
+                    if (
+                        conciseReplies
+                    ) {
 
                         """
                         Answer the following question concisely.
@@ -178,24 +219,32 @@ class ChatViewModel(
                     }
 
                 repository
-                    .generateText(geminiPrompt)
+                    .generateText(
+                        geminiPrompt
+                    )
                     .fold(
 
                         onSuccess = { text ->
 
-                            chatDao.insertMessage(
-                                ChatMessageEntity(
-                                    text = text,
-                                    sender =
-                                        MessageSender
-                                            .GEMINI
-                                            .name,
+                            chatDao
+                                .insertMessage(
+
+                                    ChatMessageEntity(
+                                        text =
+                                            text,
+
+                                        sender =
+                                            MessageSender
+                                                .GEMINI
+                                                .name,
+                                    )
                                 )
-                            )
 
                             _uiState.update {
+
                                 it.copy(
-                                    isLoading = false
+                                    isLoading =
+                                        false
                                 )
                             }
                         },
@@ -203,8 +252,10 @@ class ChatViewModel(
                         onFailure = { error ->
 
                             _uiState.update {
+
                                 it.copy(
-                                    isLoading = false,
+                                    isLoading =
+                                        false,
 
                                     errorMessage =
                                         error.message
@@ -217,6 +268,7 @@ class ChatViewModel(
             } catch (
                 e: CancellationException
             ) {
+
                 throw e
 
             } catch (
@@ -224,8 +276,10 @@ class ChatViewModel(
             ) {
 
                 _uiState.update {
+
                     it.copy(
-                        isLoading = false,
+                        isLoading =
+                            false,
 
                         errorMessage =
                             e.message
@@ -239,6 +293,7 @@ class ChatViewModel(
     fun clearError() {
 
         _uiState.update {
+
             it.copy(
                 errorMessage = null
             )
@@ -258,6 +313,7 @@ class ChatViewModel(
             ) {
 
                 _uiState.update {
+
                     it.copy(
                         errorMessage =
                             "Unable to clear chat history"
@@ -276,7 +332,7 @@ class ChatViewModel(
             repository: GeminiRepository,
             chatDao: ChatDao,
             userPreferencesRepository:
-            UserPreferencesRepository,
+            UserPreferences,
             hasApiKey: Boolean,
         ) =
             object :
@@ -286,15 +342,22 @@ class ChatViewModel(
                     "UNCHECKED_CAST"
                 )
                 override fun <T : ViewModel> create(
-                    modelClass: Class<T>
+                    modelClass:
+                    Class<T>
                 ): T {
 
                     return ChatViewModel(
-                        repository = repository,
-                        chatDao = chatDao,
+                        repository =
+                            repository,
+
+                        chatDao =
+                            chatDao,
+
                         userPreferencesRepository =
                             userPreferencesRepository,
-                        hasApiKey = hasApiKey,
+
+                        hasApiKey =
+                            hasApiKey,
                     ) as T
                 }
             }
