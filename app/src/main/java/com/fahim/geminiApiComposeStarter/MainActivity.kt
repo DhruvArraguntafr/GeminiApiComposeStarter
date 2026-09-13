@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.lifecycle.lifecycleScope
 import com.fahim.geminiApiComposeStarter.data.GeminiRepositoryImpl
 import com.fahim.geminiApiComposeStarter.data.local.ChatDatabase
@@ -50,8 +52,7 @@ class MainActivity : ComponentActivity() {
 
                         secureApiKeyManager
                             .storeApiKeyIfNeeded(
-                                BuildConfig
-                                    .GEMINI_API_KEY
+                                BuildConfig.GEMINI_API_KEY
                             )
 
                         secureApiKeyManager
@@ -73,6 +74,9 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    @OptIn(
+        ExperimentalMaterial3WindowSizeClassApi::class
+    )
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
@@ -81,12 +85,15 @@ class MainActivity : ComponentActivity() {
             savedInstanceState
         )
 
+        /*
+         * Store encrypted API key
+         * on first launch.
+         */
         lifecycleScope.launch {
 
             secureApiKeyManager
                 .storeApiKeyIfNeeded(
-                    BuildConfig
-                        .GEMINI_API_KEY
+                    BuildConfig.GEMINI_API_KEY
                 )
         }
 
@@ -96,8 +103,21 @@ class MainActivity : ComponentActivity() {
 
             GeminiApiComposeStarterTheme {
 
+                /*
+                 * Determines whether the device
+                 * is Compact, Medium or Expanded.
+                 */
+                val windowSizeClass =
+                    calculateWindowSizeClass(
+                        this@MainActivity
+                    )
+
                 ChatRoute(
-                    viewModel = viewModel
+                    viewModel = viewModel,
+
+                    windowWidthSizeClass =
+                        windowSizeClass
+                            .widthSizeClass,
                 )
             }
         }

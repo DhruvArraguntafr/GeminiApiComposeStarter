@@ -6,12 +6,18 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Read Gemini API key from local.properties.
-// If it is not available, use the environment variable for CI.
+// Read the Gemini API key from local.properties.
+// local.properties is git-ignored.
+//
+// If the key is unavailable locally,
+// fall back to an environment variable for CI.
 val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
+
+    val file =
+        rootProject.file("local.properties")
 
     if (file.exists()) {
+
         file.inputStream().use {
             load(it)
         }
@@ -19,9 +25,12 @@ val localProperties = Properties().apply {
 }
 
 val geminiApiKey: String =
-    localProperties.getProperty("GEMINI_API_KEY")
+    localProperties
+        .getProperty("GEMINI_API_KEY")
         ?.trim()
-        ?.takeIf { it.isNotEmpty() }
+        ?.takeIf {
+            it.isNotEmpty()
+        }
         ?: System.getenv("GEMINI_API_KEY")
             ?.trim()
             .orEmpty()
@@ -52,10 +61,17 @@ android {
         buildConfigField(
             "String",
             "GEMINI_API_KEY",
+
             "\"" +
                     geminiApiKey
-                        .replace("\\", "\\\\")
-                        .replace("\"", "\\\"") +
+                        .replace(
+                            "\\",
+                            "\\\\"
+                        )
+                        .replace(
+                            "\"",
+                            "\\\""
+                        ) +
                     "\""
         )
     }
@@ -64,7 +80,7 @@ android {
 
         release {
 
-            // R8 code shrinking / obfuscation
+            // R8 obfuscation / code shrinking
             isMinifyEnabled = true
 
             // Remove unused resources
@@ -92,14 +108,16 @@ android {
 
         compose = true
 
-        // Required because we expose
-        // GEMINI_API_KEY through BuildConfig
+        // Needed for BuildConfig.GEMINI_API_KEY
         buildConfig = true
     }
 }
 
 dependencies {
 
+    /*
+     * Core Android
+     */
     implementation(
         libs.androidx.core.ktx
     )
@@ -117,8 +135,11 @@ dependencies {
     )
 
     /*
-     * DataStore
-     * Used for secure encrypted API-key storage.
+     * Preferences DataStore
+     *
+     * Used for:
+     * - encrypted API key storage
+     * - persistent user preferences
      */
     implementation(
         "androidx.datastore:datastore-preferences:1.2.1"
@@ -126,7 +147,8 @@ dependencies {
 
     /*
      * Room
-     * Used to persist chat history.
+     *
+     * Used for persistent chat history.
      */
     implementation(
         libs.androidx.room.runtime
@@ -141,7 +163,7 @@ dependencies {
     )
 
     /*
-     * Compose
+     * Compose BOM
      */
     implementation(
         platform(
@@ -149,6 +171,9 @@ dependencies {
         )
     )
 
+    /*
+     * Compose
+     */
     implementation(
         libs.androidx.compose.ui
     )
@@ -166,6 +191,16 @@ dependencies {
     )
 
     /*
+     * Responsive layouts
+     *
+     * Generated accessor from:
+     * androidx-material3-window-size
+     */
+    implementation(
+        libs.androidx.material3.window.size
+    )
+
+    /*
      * Gemini
      */
     implementation(
@@ -173,7 +208,7 @@ dependencies {
     )
 
     /*
-     * Unit testing
+     * Unit tests
      */
     testImplementation(
         libs.junit
@@ -184,7 +219,7 @@ dependencies {
     )
 
     /*
-     * Android / Compose UI tests
+     * Instrumented / Compose UI tests
      */
     androidTestImplementation(
         libs.androidx.junit
@@ -205,7 +240,7 @@ dependencies {
     )
 
     /*
-     * Debug-only Compose tools
+     * Debug Compose tools
      */
     debugImplementation(
         libs.androidx.compose.ui.tooling
