@@ -61,7 +61,7 @@ class ChatViewModelTest {
                 FakeUserPreferences()
 
             val viewModel =
-                ChatViewModel(
+                _root_ide_package_.com.fahim.geminiApiComposeStarter.ui.chat.ChatViewModel(
                     repository =
                         repository,
 
@@ -127,7 +127,7 @@ class ChatViewModelTest {
         runTest {
 
             val viewModel =
-                ChatViewModel(
+                _root_ide_package_.com.fahim.geminiApiComposeStarter.ui.chat.ChatViewModel(
                     repository =
                         FakeGeminiRepository(
                             Result.success(
@@ -161,7 +161,7 @@ class ChatViewModelTest {
         runTest {
 
             val viewModel =
-                ChatViewModel(
+                _root_ide_package_.com.fahim.geminiApiComposeStarter.ui.chat.ChatViewModel(
                     repository =
                         FakeGeminiRepository(
                             Result.failure(

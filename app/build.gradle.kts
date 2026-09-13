@@ -6,18 +6,12 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Read the Gemini API key from local.properties.
-// local.properties is git-ignored.
-//
-// If the key is unavailable locally,
-// fall back to an environment variable for CI.
+// Read Gemini API key from local.properties.
+// If unavailable locally, fall back to environment variable for CI.
 val localProperties = Properties().apply {
-
-    val file =
-        rootProject.file("local.properties")
+    val file = rootProject.file("local.properties")
 
     if (file.exists()) {
-
         file.inputStream().use {
             load(it)
         }
@@ -28,17 +22,14 @@ val geminiApiKey: String =
     localProperties
         .getProperty("GEMINI_API_KEY")
         ?.trim()
-        ?.takeIf {
-            it.isNotEmpty()
-        }
+        ?.takeIf { it.isNotEmpty() }
         ?: System.getenv("GEMINI_API_KEY")
             ?.trim()
             .orEmpty()
 
 android {
 
-    namespace =
-        "com.fahim.geminiApiComposeStarter"
+    namespace = "com.fahim.geminiApiComposeStarter"
 
     compileSdk {
         version = release(36)
@@ -61,17 +52,10 @@ android {
         buildConfigField(
             "String",
             "GEMINI_API_KEY",
-
             "\"" +
                     geminiApiKey
-                        .replace(
-                            "\\",
-                            "\\\\"
-                        )
-                        .replace(
-                            "\"",
-                            "\\\""
-                        ) +
+                        .replace("\\", "\\\\")
+                        .replace("\"", "\\\"") +
                     "\""
         )
     }
@@ -80,10 +64,7 @@ android {
 
         release {
 
-            // R8 obfuscation / code shrinking
             isMinifyEnabled = true
-
-            // Remove unused resources
             isShrinkResources = true
 
             proguardFiles(
@@ -107,17 +88,13 @@ android {
     buildFeatures {
 
         compose = true
-
-        // Needed for BuildConfig.GEMINI_API_KEY
         buildConfig = true
     }
 }
 
 dependencies {
 
-    /*
-     * Core Android
-     */
+    // Core Android
     implementation(
         libs.androidx.core.ktx
     )
@@ -134,22 +111,12 @@ dependencies {
         libs.androidx.lifecycle.viewmodel.compose
     )
 
-    /*
-     * Preferences DataStore
-     *
-     * Used for:
-     * - encrypted API key storage
-     * - persistent user preferences
-     */
+    // Preferences DataStore
     implementation(
         "androidx.datastore:datastore-preferences:1.2.1"
     )
 
-    /*
-     * Room
-     *
-     * Used for persistent chat history.
-     */
+    // Room
     implementation(
         libs.androidx.room.runtime
     )
@@ -162,18 +129,14 @@ dependencies {
         libs.androidx.room.compiler
     )
 
-    /*
-     * Compose BOM
-     */
+    // Compose BOM
     implementation(
         platform(
             libs.androidx.compose.bom
         )
     )
 
-    /*
-     * Compose
-     */
+    // Compose
     implementation(
         libs.androidx.compose.ui
     )
@@ -190,26 +153,17 @@ dependencies {
         libs.androidx.compose.material3
     )
 
-    /*
-     * Responsive layouts
-     *
-     * Generated accessor from:
-     * androidx-material3-window-size
-     */
+    // Responsive WindowSizeClass
     implementation(
         libs.androidx.material3.window.size
     )
 
-    /*
-     * Gemini
-     */
+    // Gemini
     implementation(
         libs.google.generativeai
     )
 
-    /*
-     * Unit tests
-     */
+    // Unit tests
     testImplementation(
         libs.junit
     )
@@ -218,9 +172,7 @@ dependencies {
         libs.kotlinx.coroutines.test
     )
 
-    /*
-     * Instrumented / Compose UI tests
-     */
+    // Android / Compose UI tests
     androidTestImplementation(
         libs.androidx.junit
     )
@@ -230,23 +182,27 @@ dependencies {
     )
 
     androidTestImplementation(
+        libs.junit
+    )
+
+    androidTestImplementation(
         platform(
             libs.androidx.compose.bom
         )
     )
 
+    // IMPORTANT: Compose UI testing library
     androidTestImplementation(
-        libs.androidx.compose.ui.test.junit4
+        "androidx.compose.ui:ui-test-junit4"
     )
 
-    /*
-     * Debug Compose tools
-     */
+    // Compose tooling
     debugImplementation(
         libs.androidx.compose.ui.tooling
     )
 
+    // Required by createComposeRule()
     debugImplementation(
-        libs.androidx.compose.ui.test.manifest
+        "androidx.compose.ui:ui-test-manifest"
     )
 }
